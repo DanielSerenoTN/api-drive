@@ -7,7 +7,9 @@ use std::error::Error;
 pub struct File {
     pub id: Option<String>,
     pub name: Option<String>,
+    #[serde(rename = "mimeType")]
     pub mime_type: Option<String>,
+    #[serde(rename = "createdTime")]
     pub created_time: Option<String>,
 }
 
