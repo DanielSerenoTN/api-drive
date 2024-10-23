@@ -1,7 +1,8 @@
 mod config;
 mod routes;
 mod services;
-mod auth;
+mod api;
+mod handlers;
 use config::Config;
 use actix_web::{web,App, HttpServer};
 use actix_cors::Cors;
@@ -19,12 +20,12 @@ async fn main() -> std::io::Result<()> {
             .app_data(config_data.clone())
             .wrap(
                 Cors::default()
-                    .allowed_origin("*")
+                    .allow_any_origin()
                     .allowed_methods(vec!["GET", "POST"])
-                    .allowed_headers(vec!["Content-Type", "Authorization"])
-                    .supports_credentials()
+                    .allow_any_header()
             )
             .configure(routes::auth_routes::auth_routes)
+            .configure(routes::drive_routes::drive_routes)
     })
     .bind(config.serv_addrs)?
     .run()

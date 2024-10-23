@@ -1,5 +1,6 @@
+use actix_web::web;
 use api_drive::config::Config;
-use api_drive::auth::auth::TokenResponse;
+use api_drive::api::auth::TokenResponse;
 use api_drive::services::auth_service::AuthService;
 use std::future::Future;
 use std::pin::Pin;

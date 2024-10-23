@@ -4,7 +4,7 @@ mod auth_service_mock;
 mod config_mock;
 
 use actix_web::{test, web, App};
-use api_drive::services::auth_service::{auth_callback, get_auth_url};
+use api_drive::handlers::auth_handler::{auth_callback, get_auth_url};
 use auth_service_mock::{MockAuthService, MockAuthServiceError};
 use config_mock::mock_config;
 
@@ -66,6 +66,10 @@ async fn test_build_auth_url_happy_path() {
     let result = get_auth_url(config_data).await;
 
     assert!(result.contains("client_id=test_client_id"));
+
     assert!(result.contains("redirect_uri=http://localhost:8080/callback"));
+    
     assert!(result.contains("scope=https://www.googleapis.com/auth/drive"));
 }
+
+

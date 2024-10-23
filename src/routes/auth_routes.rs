@@ -1,4 +1,4 @@
-use crate::{config::Config, services::auth_service::{auth_callback, get_auth_url, AuthTokenService}};
+use crate::{config::Config, handlers::auth_handler::{auth_callback, get_auth_url}, services::auth_service:: AuthTokenService};
 use actix_web::web;
 
 pub fn auth_routes(cfg: &mut web::ServiceConfig) {
