@@ -1,4 +1,5 @@
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use serde::Deserialize;
 
 use crate::{config::Config, services::google_drive_service::DriveService};
 
@@ -58,6 +59,36 @@ pub async fn get_list_files_in_folder<T: DriveService>(
         match drive_service.list_files_in_folder(&token_str, folder_id, &config).await {
             Ok(files) => HttpResponse::Ok().json(files),
             Err(err) => HttpResponse::InternalServerError().body(format!("Error listing files: {:?}", err)),
+        }
+    } else {
+        HttpResponse::BadRequest().body("Authorization token missing or invalid")
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FileId {
+    file_id: String,
+}
+
+pub async fn get_file_by_id<T: DriveService>(
+    file_id: web::Path<FileId>,
+    req: HttpRequest,
+    config: web::Data<Config>,
+    drive_service: web::Data<T>,
+) -> impl Responder {
+    
+    let token = match req.headers().get("Authorization") {
+        Some(token) => token.to_str().ok().map(|t| t.replace("Bearer ", "")),
+        None => None,
+    };
+
+    if let Some(token_str) = token {
+
+        let file_id_str = &file_id.file_id;
+
+        match drive_service.download_pdf(&token_str, file_id_str, &config).await {
+            Ok(file) => HttpResponse::Ok().body(file),
+            Err(err) => HttpResponse::InternalServerError().body(format!("Error downloading file: {:?}", err)),
         }
     } else {
         HttpResponse::BadRequest().body("Authorization token missing or invalid")

@@ -60,3 +60,28 @@ pub async fn list_files_from_folder(token: &str, folder_id: &str, config: &Confi
         Ok(vec![])
     }
 }
+
+
+pub async fn download_pdf(token: &str, file_id: &str, config: &Config) -> Result<Vec<u8>, Box<dyn Error>> {
+    let client = Client::new();
+
+    let file_url = format!(
+        "{}/{}?alt=media", 
+        &config.drive_api_base_url, file_id
+    );
+
+    let response = client
+        .get(&file_url)
+        .bearer_auth(token)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let file_bytes = response.bytes().await?;
+
+        Ok(file_bytes.to_vec())
+    } else {
+        Err(Box::from(format!("Failed to download file: {}", response.status())))
+    }
+}
+
