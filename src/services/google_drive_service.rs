@@ -1,17 +1,18 @@
 use serde::Serialize;
+use utoipa::{IntoParams, ToSchema};
 use crate::api::google_drive::{download_pdf, list_files_from_folder, list_folders, upload_pdf_file};
 use crate::config::Config;
 use std::future::Future;
 use std::error::Error;
 use std::pin::Pin;
 
-#[derive(Serialize)]
+#[derive(Serialize, IntoParams, ToSchema)]
 pub struct FolderInfo {
     id: Option<String>,
     name: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, IntoParams, ToSchema)]
 pub struct FileInfo {
     id: Option<String>,
     name: Option<String>,

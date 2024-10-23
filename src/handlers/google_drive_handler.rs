@@ -2,10 +2,23 @@ use actix_multipart::Multipart;
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use futures::StreamExt;
 use serde::Deserialize;
-use crate::{config::Config, services::google_drive_service::DriveService};
+use utoipa::ToSchema;
+use crate::{config::Config, services::google_drive_service::{DriveService, FileInfo, FolderInfo}};
 
 
-
+#[utoipa::path(
+    get,
+    path = "/drive/list-folders",
+    params(
+        ("Authorization" = String, Header, description = "Bearer token for accessing Google Drive API")
+    ),
+    responses(
+        (status = 200, description = "List of folders in the user's Google Drive", body = [FolderInfo]),
+        (status = 400, description = "Authorization token missing or invalid"),
+        (status = 500, description = "Internal server error while listing folders.")
+    ),
+    tag = "drive"
+)]
 pub async fn get_list_folders<T: DriveService>(
     req: HttpRequest,
     config: web::Data<Config>,
@@ -27,6 +40,20 @@ pub async fn get_list_folders<T: DriveService>(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/drive/files",
+    params(
+        ("Authorization" = String, Header, description = "Bearer token for accessing Google Drive API"),
+        ("folder_id" = String, Query, description = "ID of the folder from which to list files")
+    ),
+    responses(
+        (status = 200, description = "List of files in the specified Google Drive folder", body = [FileInfo]),
+        (status = 400, description = "Authorization token missing or invalid, or folder ID missing"),
+        (status = 500, description = "Internal server error while listing files.")
+    ),
+    tag = "drive"
+)]
 pub async fn get_list_files_in_folder<T: DriveService>(
     req: HttpRequest,
     config: web::Data<Config>,
@@ -73,7 +100,21 @@ pub struct FileId {
     file_id: String,
 }
 
-pub async fn get_file_by_id<T: DriveService>(
+#[utoipa::path(
+    get,
+    path = "/drive/files/{file_id}",
+    params(
+        ("Authorization" = String, Header, description = "Bearer token for accessing Google Drive API"),
+        ("file_id" = String, Path, description = "ID of the pdf file to be downloaded")
+    ),
+    responses(
+        (status = 200, description = "File successfully downloaded", content_type = "application/pdf"),
+        (status = 400, description = "Authorization token missing or invalid"),
+        (status = 500, description = "Error downloading the file")
+    ),
+    tag = "drive"
+)]
+pub async fn download_pdf_file_by_id<T: DriveService>(
     file_id: web::Path<FileId>,
     req: HttpRequest,
     config: web::Data<Config>,
@@ -99,8 +140,26 @@ pub async fn get_file_by_id<T: DriveService>(
 }
 
 
+#[derive(ToSchema)]
+pub struct FileUploadBody {
+    pub _file: String,
+}
 
-
+#[utoipa::path(
+    post,
+    path = "/drive/files",
+    request_body(content = FileUploadBody, description = "PDF file(multipart/form-data) to be uploaded"),
+    params(
+        ("Authorization" = String, Header, description = "Bearer token for accessing Google Drive API"),
+        ("folder_id" = Option<String>, Query, description = "ID of the folder where the PDF will be uploaded (defaults to root folder if not provided)")
+    ),
+    responses(
+        (status = 200, description = "File uploaded successfully", body = String),
+        (status = 400, description = "Authorization token missing or invalid"),
+        (status = 500, description = "Internal server error while uploading file")
+    ),
+    tag = "drive"
+)]
 pub async fn upload_pdf_file<T: DriveService>(
     req: HttpRequest,
     mut payload: Multipart,
