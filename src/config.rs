@@ -11,6 +11,7 @@ pub struct Config {
     pub serv_addrs: String,
     pub drive_api_base_url: String,
     pub drive_upload_url: String,
+    pub token_validation_url: String,
 }
 
 impl Config {
@@ -26,7 +27,7 @@ impl Config {
         let serv_addrs = env::var("SERV_ADDRS").expect("Server address is missing.");
         let drive_api_base_url = env::var("GOOGLE_DRIVE_API_BASE_URL").expect("Google drive api URL is missing.");
         let drive_upload_url = env::var("GOOGLE_DRIVE_UPLOAD_URL").expect("Google drive upload URL is missing.");
-        
+        let token_validation_url = env::var("TOKEN_VALIDATION_URL").expect("Token URL validation is missing.");
         Config {
             client_id,
             client_secret,
@@ -36,7 +37,8 @@ impl Config {
             scope,
             serv_addrs,
             drive_api_base_url,
-            drive_upload_url
+            drive_upload_url,
+            token_validation_url
         }
     }
 }

@@ -45,3 +45,20 @@ pub fn build_auth_url(config: web::Data<Config>) -> String {
     );
     auth_url
 }
+
+pub async fn validate_token(token: String) -> Result<bool, Box<dyn Error>> {
+    let client = Client::new();
+    
+    let url = format!("https://www.googleapis.com/oauth2/v3/tokeninfo?access_token={}", token);
+
+    let response = client.get(&url).send().await?;
+
+    if response.status().is_success() {
+        let json: serde_json::Value = response.json().await?;
+        println!("Token info: {:?}", json);
+        Ok(true)
+    } else {
+        println!("Token is invalid or expired.");
+        Ok(false)
+    }
+}
