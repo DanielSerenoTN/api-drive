@@ -1,4 +1,4 @@
 pub mod config;
 pub mod routes;
 pub mod services;
-pub mod auth;
+pub mod api;
