@@ -1,6 +1,6 @@
 use actix_web::{web,HttpResponse, Responder};
 use serde::Deserialize;
-use crate::auth::auth::{build_auth_url, TokenResponse};
+use crate::api::auth::{build_auth_url, get_access_token, TokenResponse};
 use crate::config::Config;
 use std::future::Future;
 use std::error::Error;
@@ -16,7 +16,7 @@ pub trait AuthService {
         &'a self,
         code: &'a str,
         config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<TokenResponse, Box<dyn Error>>> + 'a>>;  // Utiliza Pin<Box<...>>
+    ) -> Pin<Box<dyn Future<Output = Result<TokenResponse, Box<dyn Error>>> + 'a>>;
 }
 
 pub struct AuthTokenService;
@@ -27,7 +27,7 @@ impl AuthService for AuthTokenService {
         code: &'a str,
         config: &'a Config
     ) -> Pin<Box<dyn Future<Output = Result<TokenResponse, Box<dyn Error>>> + 'a>> {
-        Box::pin(crate::auth::auth::get_access_token(code, config))
+        Box::pin(get_access_token(code, config))
     }
 }
 

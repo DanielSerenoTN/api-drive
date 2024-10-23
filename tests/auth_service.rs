@@ -69,3 +69,5 @@ async fn test_build_auth_url_happy_path() {
     assert!(result.contains("redirect_uri=http://localhost:8080/callback"));
     assert!(result.contains("scope=https://www.googleapis.com/auth/drive"));
 }
+
+
