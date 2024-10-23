@@ -1,11 +1,12 @@
 use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 use crate::api::auth::{get_access_token, TokenResponse};
 use crate::config::Config;
 use std::future::Future;
 use std::error::Error;
 use std::pin::Pin;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams, ToSchema)]
 pub struct AuthCallbackQuery {
     pub code: String,
 }
