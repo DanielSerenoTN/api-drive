@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::{Client, multipart};
 use serde::Deserialize;
 use crate::config::Config;
 use std::error::Error;
@@ -84,4 +84,46 @@ pub async fn download_pdf(token: &str, file_id: &str, config: &Config) -> Result
         Err(Box::from(format!("Failed to download file: {}", response.status())))
     }
 }
+
+pub async fn upload_pdf_file(
+    token: &str,
+    folder_id: &str,
+    file_name: String,
+    file_content: Vec<u8>,
+    config: &Config
+) -> Result<String, Box<dyn Error>> {
+    let client = Client::new();
+
+    let upload_url = format!("{}?uploadType=multipart", &config.drive_upload_url);
+
+    let metadata = format!(
+        r#"{{
+            "name": "{}",
+            "parents": ["{}"]
+        }}"#,
+        file_name, folder_id
+    );
+
+    let form = multipart::Form::new()
+        .part("metadata", multipart::Part::text(metadata).mime_str("application/json")?)
+        .part("file", multipart::Part::bytes(file_content).file_name(file_name.clone()).mime_str("application/pdf")?);
+
+    let response = client
+        .post(&upload_url)
+        .bearer_auth(token)
+        .multipart(form)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let json_response: serde_json::Value = response.json().await?;
+
+        let file_id = json_response["id"].as_str().unwrap_or("").to_string();
+
+        Ok(file_id)
+    } else {
+        Err(Box::from(format!("Failed to upload file: {}", response.status())))
+    }
+}
+
 

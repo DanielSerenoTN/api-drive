@@ -1,5 +1,5 @@
 use serde::Serialize;
-use crate::api::google_drive::{download_pdf, list_files_from_folder, list_folders};
+use crate::api::google_drive::{download_pdf, list_files_from_folder, list_folders, upload_pdf_file};
 use crate::config::Config;
 use std::future::Future;
 use std::error::Error;
@@ -39,8 +39,16 @@ pub trait DriveService {
         file_id: &'a str,
         config: &'a Config
     ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, Box<dyn Error>>> + 'a>>;
+   
+    fn upload_pdf<'a>(
+        &'a self,
+        token: &'a str,
+        folder_id: &'a str,
+        file_name: String,
+        file_content: Vec<u8>,
+        config: &'a Config
+    ) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn Error>>> + 'a>>;
 }
-
 pub struct GoogleDriveService;
 
 impl DriveService for GoogleDriveService {
@@ -108,6 +116,22 @@ impl DriveService for GoogleDriveService {
             }
         })
     }
-    
+
+    fn upload_pdf<'a>(
+        &'a self,
+        token: &'a str,
+        folder_id: &'a str,
+        file_name: String,
+        file_content: Vec<u8>,
+        config: &'a Config
+    ) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn Error>>> + 'a>> {
+       
+        Box::pin(async move {
+            match upload_pdf_file(token, folder_id, file_name, file_content, config).await {
+                Ok(file_id) => Ok(file_id),
+                Err(e) => Err(Box::from(format!("Error uploading file: {:?}", e))),
+            }
+        })
+    }
 }
 
