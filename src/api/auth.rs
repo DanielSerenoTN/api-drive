@@ -24,7 +24,7 @@ pub async fn get_access_token(
     params.insert("grant_type", "authorization_code");
 
     let response = client
-        .post(&config.token_uri)
+        .post(config.token_uri)
         .form(&params)
         .send()
         .await
