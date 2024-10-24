@@ -1,22 +1,13 @@
-FROM rust:1.73 as builder
-
+FROM rust:1.78.0 AS builder
 WORKDIR /usr/src/app
-
-COPY . .
-
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN cargo build --release
+RUN rm -rf src
+COPY ./src ./src
 RUN cargo build --release
 
 FROM debian:buster-slim
-
-RUN apt-get update && apt-get install -y \
-    libssl-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /usr/src/app
-
-COPY --from=builder /usr/src/app/target/release/api_drive /usr/local/bin/api_drive
-
-EXPOSE 8080
-
-CMD ["api_drive"]
+COPY --from=builder /usr/src/app/target/release/api_drive ./
+CMD ["./api_drive"]
