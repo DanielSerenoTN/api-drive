@@ -1,10 +1,9 @@
-use actix_web::web;
 use api_drive::config::Config;
 use api_drive::api::auth::TokenResponse;
 use api_drive::services::auth_service::AuthService;
 use std::future::Future;
 use std::pin::Pin;
-use std::error::Error;
+use anyhow::{Result, anyhow};
 
 pub struct MockAuthService;
 
@@ -13,7 +12,7 @@ impl AuthService for MockAuthService {
         &'a self,
         _code: &'a str,
         _config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<TokenResponse, Box<dyn Error>>> + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<TokenResponse>> + Send + 'a>> {
         Box::pin(async {
             Ok(TokenResponse {
                 access_token: "mock_access_token".to_string(),
@@ -30,9 +29,9 @@ impl AuthService for MockAuthServiceError {
         &'a self,
         _code: &'a str,
         _config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<TokenResponse, Box<dyn Error>>> + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<TokenResponse>> + Send + 'a>> {
         Box::pin(async {
-            Err(Box::from("Mock error exchanging code for token"))
+            Err(anyhow!("Mock error exchanging code for token"))
         })
     }
 }
