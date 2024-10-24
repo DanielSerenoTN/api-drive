@@ -1,13 +1,13 @@
-FROM rust:1.78.0 AS builder
-WORKDIR /usr/src/app
-COPY Cargo.toml Cargo.lock ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo build --release
-RUN rm -rf src
-COPY ./src ./src
+ARG BASE_IMAGE=rust:1.75.0
+
+FROM $BASE_IMAGE as builder
+WORKDIR app
+COPY . .
 RUN cargo build --release
 
-FROM debian:buster-slim
-WORKDIR /usr/src/app
-COPY --from=builder /usr/src/app/target/release/api_drive ./
+FROM gcr.io/distroless/cc-debian12
+
+COPY --from=builder /app/target/release/api_drive /
+
+EXPOSE 8080
 CMD ["./api_drive"]
