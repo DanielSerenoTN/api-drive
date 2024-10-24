@@ -27,7 +27,7 @@ cargo run
 
 ### Para ejecutar la API con Docker:
 **Construir la imagen Docker:**
-docker build -t api_drive para const
+docker build -t api_drive para construir la imagen
 
 **Ejecutar el contenedor Docker:**
 docker run -p 8080:8080 --env-file .env api_drive
