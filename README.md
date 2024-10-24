@@ -27,6 +27,7 @@ cargo run
 
 ### Para ejecutar la API con Docker:
 **Construir la imagen Docker:**
+
 docker build -t api_drive . para construir la imagen
 
 **Ejecutar el contenedor Docker:**
