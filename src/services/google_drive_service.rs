@@ -1,9 +1,9 @@
 use serde::Serialize;
 use utoipa::{IntoParams, ToSchema};
-use crate::api::google_drive::{download_pdf, list_files_from_folder, list_folders, upload_pdf_file};
+use crate::api::google_drive::{download_pdf, list_files_from_folder, list_folders, upload_pdf_file, initialize_resumable_upload};
 use crate::config::Config;
+use anyhow::{Result, Context};
 use std::future::Future;
-use std::error::Error;
 use std::pin::Pin;
 
 #[derive(Serialize, IntoParams, ToSchema)]
@@ -25,31 +25,39 @@ pub trait DriveService {
         &'a self,
         token: &'a str,
         config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<FolderInfo>, Box<dyn Error>>> + 'a>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<FolderInfo>>> + Send + 'a>>;
 
     fn list_files_in_folder<'a>(
         &'a self,
         token: &'a str,
         folder_id: &'a str,
         config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<FileInfo>, Box<dyn Error>>> + 'a>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<FileInfo>>> + Send + 'a>>;
 
     fn download_pdf<'a>(
         &'a self,
         token: &'a str,
         file_id: &'a str,
         config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, Box<dyn Error>>> + 'a>>;
-   
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>>> + Send + 'a>>;
+
     fn upload_pdf<'a>(
         &'a self,
         token: &'a str,
-        folder_id: &'a str,
-        file_name: String,
+        resumable_url: &'a str,
         file_content: Vec<u8>,
-        config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn Error>>> + 'a>>;
+        start_byte: Option<u64>
+    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>>;
+
+    fn initialize_resumable_upload<'a>(
+        &'a self,
+        token: &'a str,
+        folder_id: &'a str,
+        file_name: &'a str,
+        config: &'a Config,
+    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>>;
 }
+
 pub struct GoogleDriveService;
 
 impl DriveService for GoogleDriveService {
@@ -57,21 +65,20 @@ impl DriveService for GoogleDriveService {
         &'a self,
         token: &'a str,
         config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<FolderInfo>, Box<dyn Error>>> + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<FolderInfo>>> + Send + 'a>> {
         Box::pin(async move {
-            match list_folders(token, config).await {
-                Ok(folders) => {
-                    let folder_info: Vec<FolderInfo> = folders
-                    .into_iter()
-                    .map(|folder| FolderInfo {
-                        id: folder.id,
-                        name: folder.name,
-                    })
-                    .collect();
-                    Ok(folder_info)
-                }
-                Err(e) => Err(Box::from(format!("Error getting folders: {:?}", e))),
-            }
+            list_folders(token, config)
+                .await
+                .with_context(|| "Failed to list folders")
+                .map(|folders| {
+                    folders
+                        .into_iter()
+                        .map(|folder| FolderInfo {
+                            id: folder.id,
+                            name: folder.name,
+                        })
+                        .collect()
+                })
         })
     }
 
@@ -80,11 +87,13 @@ impl DriveService for GoogleDriveService {
         token: &'a str,
         folder_id: &'a str,
         config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<FileInfo>, Box<dyn Error>>> + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<FileInfo>>> + Send + 'a>> {
         Box::pin(async move {
-            match list_files_from_folder(token, folder_id, config).await {
-                Ok(files) => {
-                    let file_info: Vec<FileInfo> = files
+            list_files_from_folder(token, folder_id, config)
+                .await
+                .with_context(|| format!("Failed to list files in folder: {}", folder_id))
+                .map(|files| {
+                    files
                         .into_iter()
                         .map(|file| FileInfo {
                             id: file.id,
@@ -92,11 +101,8 @@ impl DriveService for GoogleDriveService {
                             mime_type: file.mime_type,
                             created_time: file.created_time,
                         })
-                        .collect();
-                    Ok(file_info)
-                }
-                Err(e) => Err(Box::from(format!("Error getting files: {:?}", e))),
-            }
+                        .collect()
+                })
         })
     }
 
@@ -105,34 +111,39 @@ impl DriveService for GoogleDriveService {
         token: &'a str,
         file_id: &'a str,
         config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, Box<dyn Error>>> + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>>> + Send + 'a>> {
         Box::pin(async move {
-            match download_pdf(token, file_id, config).await {
-                Ok(file) => {
-                    Ok(file)
-                }
-                Err(e) => {
-                    Err(Box::from(format!("Error downloading file: {:?}", e)))
-                }
-            }
+            download_pdf(token, file_id, config)
+                .await
+                .with_context(|| format!("Failed to download PDF with ID: {}", file_id))
         })
     }
 
     fn upload_pdf<'a>(
         &'a self,
         token: &'a str,
-        folder_id: &'a str,
-        file_name: String,
+        resumable_url: &'a str,
         file_content: Vec<u8>,
-        config: &'a Config
-    ) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn Error>>> + 'a>> {
-       
+        start_byte: Option<u64>
+    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
         Box::pin(async move {
-            match upload_pdf_file(token, folder_id, file_name, file_content, config).await {
-                Ok(file_id) => Ok(file_id),
-                Err(e) => Err(Box::from(format!("Error uploading file: {:?}", e))),
-            }
+            upload_pdf_file(token, resumable_url, file_content, start_byte)
+                .await
+                .with_context(|| format!("Failed to upload file chunk to URL: {}", resumable_url))
+        })
+    }
+
+    fn initialize_resumable_upload<'a>(
+        &'a self,
+        token: &'a str,
+        folder_id: &'a str,
+        file_name: &'a str,
+        config: &'a Config,
+    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
+        Box::pin(async move {
+            initialize_resumable_upload(token, folder_id, file_name, config)
+                .await
+                .with_context(|| format!("Failed to initialize resumable upload for file: {}", file_name))
         })
     }
 }
-
