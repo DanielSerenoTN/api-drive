@@ -19,9 +19,9 @@ impl Config {
 
         let client_id = env::var("CLIENT_ID").expect("Client ID is missing.");
         let client_secret = env::var("CLIENT_SECRET").expect("Client secret is missing.");
-        let redirect_uri = env::var("REDIRECT_URI").expect("Redirect URL is missing.");
+        let redirect_uri = env::var("REDIRECT_URI").unwrap_or_else(|_| "http://127.0.0.1:8080/auth/callback".to_string());
         let scope = env::var("SCOPE").unwrap_or_else(|_| "https://www.googleapis.com/auth/drive".to_string());
-        let serv_addrs = env::var("SERV_ADDRS").expect("Server address is missing.");
+        let serv_addrs = env::var("SERV_ADDRS").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
         let drive_api_base_url = env::var("GOOGLE_DRIVE_API_BASE_URL").unwrap_or_else(|_| "https://www.googleapis.com/drive/v3/files".to_string());
         let drive_upload_url = env::var("GOOGLE_DRIVE_UPLOAD_URL").unwrap_or_else(|_| "https://www.googleapis.com/upload/drive/v3/files".to_string());
      
