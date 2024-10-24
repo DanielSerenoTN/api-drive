@@ -1,5 +1,5 @@
 use actix_web::{web, HttpResponse, Responder};
-
+use anyhow::Context;
 use crate::{api::auth::build_auth_url, config::Config, services::auth_service::{AuthCallbackQuery, AuthService}};
 
 #[utoipa::path(
@@ -14,13 +14,16 @@ use crate::{api::auth::build_auth_url, config::Config, services::auth_service::{
     ),
     tag = "auth"
 )]
-
 pub async fn auth_callback<T: AuthService>(
     query: web::Query<AuthCallbackQuery>,
     config: web::Data<Config>,
-    token_service: web::Data<T>,          
+    token_service: web::Data<T>,
 ) -> impl Responder {
-    match token_service.get_access_token(&query.code, &config).await {
+    match token_service
+        .get_access_token(&query.code, &config)
+        .await
+        .context("Failed to obtain access token")
+    {
         Ok(token_response) => {
             HttpResponse::Ok().body(format!(
                 "Access Token: {}\nExpires in: {}",
@@ -34,7 +37,6 @@ pub async fn auth_callback<T: AuthService>(
     }
 }
 
-
 #[utoipa::path(
     get,
     path = "/auth",
@@ -43,7 +45,6 @@ pub async fn auth_callback<T: AuthService>(
     ),
     tag = "auth"
 )]
-
 pub async fn get_auth_url(
     config: web::Data<Config>
 ) -> String {

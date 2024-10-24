@@ -3,9 +3,9 @@ use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use futures::StreamExt;
 use serde::Deserialize;
 use utoipa::ToSchema;
-use std:: time::Instant;
+use std::time::Instant;
 use crate::{config::Config, services::google_drive_service::{DriveService, FileInfo, FolderInfo}};
-
+use anyhow::Context;
 
 #[utoipa::path(
     get,
@@ -25,16 +25,18 @@ pub async fn get_list_folders<T: DriveService>(
     config: web::Data<Config>,
     drive_service: web::Data<T>,
 ) -> impl Responder {
-    
     let token = match req.headers().get("Authorization") {
         Some(token) => token.to_str().ok().map(|t| t.replace("Bearer ", "")),
         None => None,
     };
 
     if let Some(token_str) = token {
-        match drive_service.list_folders(&token_str, &config).await {
+        match drive_service.list_folders(&token_str, &config).await.context("Failed to list folders") {
             Ok(folders) => HttpResponse::Ok().json(folders),
-            Err(err) => HttpResponse::InternalServerError().body(format!("Error listing folders: {:?}", err)),
+            Err(err) => {
+                eprintln!("Error listing folders: {:?}", err);
+                HttpResponse::InternalServerError().body(format!("Error listing folders: {:?}", err))
+            }
         }
     } else {
         HttpResponse::BadRequest().body("Authorization token missing or invalid")
@@ -62,14 +64,12 @@ pub async fn get_list_files_in_folder<T: DriveService>(
     config: web::Data<Config>,
     drive_service: web::Data<T>,
 ) -> impl Responder {
-    
     let token = match req.headers().get("Authorization") {
         Some(token) => token.to_str().ok().map(|t| t.replace("Bearer ", "")),
         None => None,
     };
 
     if let Some(token_str) = token {
-
         let query_params = req.query_string();
 
         let folder_id = query_params
@@ -89,9 +89,16 @@ pub async fn get_list_files_in_folder<T: DriveService>(
             None => return HttpResponse::BadRequest().body("Missing folder_id in query parameters"),
         };
 
-        match drive_service.list_files_in_folder(&token_str, folder_id, &config).await {
+        match drive_service
+            .list_files_in_folder(&token_str, folder_id, &config)
+            .await
+            .context("Failed to list files in folder")
+        {
             Ok(files) => HttpResponse::Ok().json(files),
-            Err(err) => HttpResponse::InternalServerError().body(format!("Error listing files: {:?}", err)),
+            Err(err) => {
+                eprintln!("Error listing files: {:?}", err);
+                HttpResponse::InternalServerError().body(format!("Error listing files: {:?}", err))
+            }
         }
     } else {
         HttpResponse::BadRequest().body("Authorization token missing or invalid")
@@ -125,25 +132,29 @@ pub async fn download_pdf_file_by_id<T: DriveService>(
     config: web::Data<Config>,
     drive_service: web::Data<T>,
 ) -> impl Responder {
-    
     let token = match req.headers().get("Authorization") {
         Some(token) => token.to_str().ok().map(|t| t.replace("Bearer ", "")),
         None => None,
     };
 
     if let Some(token_str) = token {
-
         let file_id_str = &file_id.file_id;
 
-        match drive_service.download_pdf(&token_str, file_id_str, &config).await {
+        match drive_service
+            .download_pdf(&token_str, file_id_str, &config)
+            .await
+            .context("Failed to download PDF file")
+        {
             Ok(file) => HttpResponse::Ok().body(file),
-            Err(err) => HttpResponse::InternalServerError().body(format!("Error downloading file: {:?}", err)),
+            Err(err) => {
+                eprintln!("Error downloading file: {:?}", err);
+                HttpResponse::InternalServerError().body(format!("Error downloading file: {:?}", err))
+            }
         }
     } else {
         HttpResponse::BadRequest().body("Authorization token missing or invalid")
     }
 }
-
 
 #[derive(ToSchema)]
 pub struct FileUploadBody {
@@ -167,23 +178,19 @@ pub struct FileUploadBody {
     ),
     tag = "drive"
 )]
-
 pub async fn upload_pdf_file<T: DriveService + Send + Sync + 'static>(
     req: HttpRequest,
     mut payload: Multipart,
     config: web::Data<Config>,
     drive_service: web::Data<T>,
 ) -> impl Responder {
-
     let token = match req.headers().get("Authorization") {
         Some(token) => token.to_str().ok().map(|t| t.replace("Bearer ", "")),
         None => None,
     };
 
     if let Some(token_str) = token {
-
         let mut file_name = String::new();
-        
         let mut last_file_id = String::new();
 
         let folder_id = req.query_string()
@@ -199,7 +206,11 @@ pub async fn upload_pdf_file<T: DriveService + Send + Sync + 'static>(
             })
             .unwrap_or("root");
 
-        let resumable_url = match drive_service.get_ref().initialize_resumable_upload(&token_str, folder_id, &file_name, &config).await {
+        let resumable_url = match drive_service.get_ref()
+            .initialize_resumable_upload(&token_str, folder_id, &file_name, &config)
+            .await
+            .context("Failed to initialize resumable upload")
+        {
             Ok(url) => url,
             Err(e) => {
                 eprintln!("Failed to initialize upload: {:?}", e);
@@ -208,7 +219,6 @@ pub async fn upload_pdf_file<T: DriveService + Send + Sync + 'static>(
         };
 
         while let Some(Ok(mut field)) = payload.next().await {
-
             let content_disposition = field.content_disposition();
 
             if let Some(name) = content_disposition.get_filename() {
@@ -220,17 +230,19 @@ pub async fn upload_pdf_file<T: DriveService + Send + Sync + 'static>(
                 match chunk {
                     Ok(data) => {
                         let chunk_size = data.len();
-
                         let start_time = Instant::now();
 
                         println!("Uploading chunk of size: {} bytes", chunk_size);
 
-                        match drive_service.upload_pdf(&token_str, &resumable_url, data.to_vec(), None).await {
+                        match drive_service.upload_pdf(&token_str, &resumable_url, data.to_vec(), None).await.context("Failed to upload file chunk") {
                             Ok(file_id) => {
                                 let duration = start_time.elapsed();
-                                println!("Chunk of size {} bytes uploaded successfully in {:?} seconds", chunk_size, duration.as_secs_f64());
+                                println!(
+                                    "Chunk of size {} bytes uploaded successfully in {:?} seconds",
+                                    chunk_size,
+                                    duration.as_secs_f64()
+                                );
                                 last_file_id = file_id;
-                                continue; 
                             },
                             Err(err) => {
                                 eprintln!("Error uploading file chunk: {:?}", err);
@@ -254,7 +266,6 @@ pub async fn upload_pdf_file<T: DriveService + Send + Sync + 'static>(
         }))
     } else {
         eprintln!("Authorization token missing or invalid");
-
         HttpResponse::BadRequest().body("Authorization token missing or invalid")
     }
 }
