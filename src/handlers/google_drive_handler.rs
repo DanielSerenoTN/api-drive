@@ -3,6 +3,7 @@ use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use futures::StreamExt;
 use serde::Deserialize;
 use utoipa::ToSchema;
+use std:: time::Instant;
 use crate::{config::Config, services::google_drive_service::{DriveService, FileInfo, FolderInfo}};
 
 
@@ -166,7 +167,8 @@ pub struct FileUploadBody {
     ),
     tag = "drive"
 )]
-pub async fn upload_pdf_file<T: DriveService>(
+
+pub async fn upload_pdf_file<T: DriveService + Send + Sync + 'static>(
     req: HttpRequest,
     mut payload: Multipart,
     config: web::Data<Config>,
@@ -179,25 +181,10 @@ pub async fn upload_pdf_file<T: DriveService>(
     };
 
     if let Some(token_str) = token {
+
         let mut file_name = String::new();
-
-        let mut file_content = web::BytesMut::new();
-
-        while let Some(Ok(mut field)) = payload.next().await {
-          
-            let content_disposition = field.content_disposition();
-
-            if let Some(name) = content_disposition.get_filename() {
-                file_name = name.to_string();
-            }
-
-            while let Some(chunk) = field.next().await {
-                match chunk {
-                    Ok(data) => file_content.extend_from_slice(&data),
-                    Err(_) => return HttpResponse::InternalServerError().body("Error reading file content"),
-                }
-            }
-        }
+        
+        let mut last_file_id = String::new();
 
         let folder_id = req.query_string()
             .split('&')
@@ -209,15 +196,65 @@ pub async fn upload_pdf_file<T: DriveService>(
                     }
                 }
                 None
-            });
+            })
+            .unwrap_or("root");
 
-        let folder_id = folder_id.unwrap_or("root");
+        let resumable_url = match drive_service.get_ref().initialize_resumable_upload(&token_str, folder_id, &file_name, &config).await {
+            Ok(url) => url,
+            Err(e) => {
+                eprintln!("Failed to initialize upload: {:?}", e);
+                return HttpResponse::InternalServerError().body(format!("Failed to initialize upload: {:?}", e));
+            },
+        };
 
-        match drive_service.upload_pdf(&token_str, folder_id, file_name, file_content.to_vec(), &config).await {
-            Ok(file_id) => HttpResponse::Ok().body(format!("File uploaded successfully. File ID: {}", file_id)),
-            Err(err) => HttpResponse::InternalServerError().body(format!("Error uploading file: {:?}", err)),
+        while let Some(Ok(mut field)) = payload.next().await {
+
+            let content_disposition = field.content_disposition();
+
+            if let Some(name) = content_disposition.get_filename() {
+                file_name = name.to_string();
+                println!("Uploading file: {}", file_name);
+            }
+
+            while let Some(chunk) = field.next().await {
+                match chunk {
+                    Ok(data) => {
+                        let chunk_size = data.len();
+
+                        let start_time = Instant::now();
+
+                        println!("Uploading chunk of size: {} bytes", chunk_size);
+
+                        match drive_service.upload_pdf(&token_str, &resumable_url, data.to_vec(), None).await {
+                            Ok(file_id) => {
+                                let duration = start_time.elapsed();
+                                println!("Chunk of size {} bytes uploaded successfully in {:?} seconds", chunk_size, duration.as_secs_f64());
+                                last_file_id = file_id;
+                                continue; 
+                            },
+                            Err(err) => {
+                                eprintln!("Error uploading file chunk: {:?}", err);
+                                return HttpResponse::InternalServerError().body("Error uploading file chunk");
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!("Error reading file content");
+                        return HttpResponse::InternalServerError().body("Error reading file content");
+                    }
+                }
+            }
         }
+
+        println!("File '{}' uploaded successfully with ID '{}'", file_name, last_file_id);
+
+        HttpResponse::Ok().json(serde_json::json!({
+            "file_name": file_name,
+            "file_id": last_file_id
+        }))
     } else {
+        eprintln!("Authorization token missing or invalid");
+
         HttpResponse::BadRequest().body("Authorization token missing or invalid")
     }
 }

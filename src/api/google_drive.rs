@@ -1,13 +1,19 @@
-use reqwest::{Client, multipart};
+use actix_web::http::header::HeaderMap;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use reqwest::{header::RANGE, Client};
 use serde::Deserialize;
+use serde_json::json;
 use crate::config::Config;
 use std::error::Error;
+use std::error::Error as StdError;
 
 #[derive(Deserialize)]
 pub struct File {
     pub id: Option<String>,
     pub name: Option<String>,
+    #[serde(rename = "mimeType")]
     pub mime_type: Option<String>,
+    #[serde(rename = "createdTime")]
     pub created_time: Option<String>,
 }
 
@@ -85,45 +91,73 @@ pub async fn download_pdf(token: &str, file_id: &str, config: &Config) -> Result
     }
 }
 
+
 pub async fn upload_pdf_file(
+        token: &str,
+        resumable_url: &str,
+        file_content: Vec<u8>,
+        start_byte: Option<u64>
+) -> Result<String, Box<dyn StdError>> {
+        let client = Client::new();
+    
+        let mut headers = HeaderMap::new();
+        if let Some(start) = start_byte {
+            headers.insert(RANGE, format!("bytes={}-", start).parse()?);
+        }
+    
+        let response = client
+            .put(resumable_url)
+            .bearer_auth(token)
+            .headers(headers.into())
+            .body(file_content)
+            .send()
+            .await?;
+    
+        if response.status().is_success() {
+            let json_response: serde_json::Value = response.json().await?;
+            let file_id = json_response["id"].as_str().unwrap_or("").to_string();
+            Ok(file_id)
+        } else {
+            Err(Box::from(format!("Failed to upload file: {}", response.status())))
+        }
+}
+    
+
+pub async fn initialize_resumable_upload(
     token: &str,
     folder_id: &str,
-    file_name: String,
-    file_content: Vec<u8>,
-    config: &Config
-) -> Result<String, Box<dyn Error>> {
+    file_name: &str,
+    config: &Config,
+) -> Result<String, Box<dyn StdError>> {
     let client = Client::new();
+    let upload_url = format!("{}?uploadType=resumable", &config.drive_upload_url);
 
-    let upload_url = format!("{}?uploadType=multipart", &config.drive_upload_url);
+    let metadata = json!({
+        "name": file_name,
+        "parents": [folder_id]
+    });
 
-    let metadata = format!(
-        r#"{{
-            "name": "{}",
-            "parents": ["{}"]
-        }}"#,
-        file_name, folder_id
-    );
+    let mut headers = HeaderMap::new();
 
-    let form = multipart::Form::new()
-        .part("metadata", multipart::Part::text(metadata).mime_str("application/json")?)
-        .part("file", multipart::Part::bytes(file_content).file_name(file_name.clone()).mime_str("application/pdf")?);
+    headers.insert(CONTENT_TYPE, "application/json".parse()?);
+
+    headers.insert(AUTHORIZATION, format!("Bearer {}", token).parse()?);
+
 
     let response = client
         .post(&upload_url)
-        .bearer_auth(token)
-        .multipart(form)
+        .headers(headers.into())
+        .json(&metadata)
         .send()
         .await?;
 
     if response.status().is_success() {
-        let json_response: serde_json::Value = response.json().await?;
-
-        let file_id = json_response["id"].as_str().unwrap_or("").to_string();
-
-        Ok(file_id)
+        if let Some(resumable_url) = response.headers().get("Location") {
+            Ok(resumable_url.to_str()?.to_string())
+        } else {
+            Err(Box::from("Failed to get resumable upload URL"))
+        }
     } else {
-        Err(Box::from(format!("Failed to upload file: {}", response.status())))
+        Err(Box::from(format!("Failed to initialize upload: {}", response.status())))
     }
 }
-
-
