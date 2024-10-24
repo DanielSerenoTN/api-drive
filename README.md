@@ -56,9 +56,7 @@ GOOGLE_DRIVE_API_BASE_URL=https://www.googleapis.com/drive/v3/files
 
 GOOGLE_DRIVE_UPLOAD_URL=https://www.googleapis.com/upload/drive/v3/files
 
-TOKEN_VALIDATION_URL=https://www.googleapis.com/oauth2/v3
-
-Solo necesitas configurar CLIENT_ID y CLIENT_SECRET con tus credenciales de la API de Google.
+Solo necesitas configurar CLIENT_ID y CLIENT_SECRET con tus credenciales de la API de Google, las demas variables tienen valor por default en caso de no especificarse.
 
 
 ## Uso de la API
