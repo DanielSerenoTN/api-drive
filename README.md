@@ -96,6 +96,6 @@ Sigue las instrucciones en la interfaz para interactuar con las diferentes rutas
 
 - GET /drive/files?folder_id=<ID_DEL_FOLDER>: Lista los archivos dentro de un directorio específico.
 
-- POST /drive/files: Sube un archivo PDF a un directorio específico.
+- POST /drive/files?folder_id=<ID_DEL_FOLDER>: Sube un archivo PDF a un directorio específico.
 
 - GET /drive/files/{file_id}: Descarga un archivo PDF desde tu Google Drive usando su ID.
