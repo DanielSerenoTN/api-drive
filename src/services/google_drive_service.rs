@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use crate::api::google_drive::{download_pdf, list_files_from_folder, list_folders, upload_pdf_file, initialize_resumable_upload};
 use crate::config::Config;
@@ -6,18 +6,18 @@ use anyhow::{Result, Context};
 use std::future::Future;
 use std::pin::Pin;
 
-#[derive(Serialize, IntoParams, ToSchema)]
+#[derive(Serialize, Deserialize, IntoParams, ToSchema)]
 pub struct FolderInfo {
-    id: Option<String>,
-    name: Option<String>,
+    pub id: Option<String>,
+    pub name: Option<String>,
 }
 
-#[derive(Serialize, IntoParams, ToSchema)]
+#[derive(Serialize, Deserialize, IntoParams, ToSchema)]
 pub struct FileInfo {
-    id: Option<String>,
-    name: Option<String>,
-    mime_type: Option<String>,
-    created_time: Option<String>,
+    pub id: Option<String>,
+    pub name: Option<String>,
+    pub mime_type: Option<String>,
+    pub created_time: Option<String>,
 }
 
 pub trait DriveService {
