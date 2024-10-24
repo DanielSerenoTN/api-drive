@@ -27,10 +27,10 @@ cargo run
 
 ### Para ejecutar la API con Docker:
 **Construir la imagen Docker:**
-docker build -t api_drive para const
+docker build -t api_drive . para construir la imagen
 
 **Ejecutar el contenedor Docker:**
-docker run -p 8080:8080 --env-file .env api_drive
+docker run -d -p 8080:8080 --env-file .env api_drive
 
 
 ## Configuración del Archivo .env
@@ -65,7 +65,7 @@ Para autenticarte y obtener el token de acceso, sigue estos pasos:
 
 1.- Accede a la ruta de autenticación:
 
-2.- Ve a la ruta http://127.0.0.1:8080/auth/ Esto generará una URL que aparecerá en la respuesta.
+2.- Ve a la ruta http://127.0.0.1:8080/auth Esto generará una URL que aparecerá en la respuesta.
 
 ### Autenticación en el navegador:
 
@@ -80,7 +80,7 @@ Este token de acceso es necesario para realizar peticiones autenticadas a la API
 
 - En Postman o cualquier cliente http: Configura el apartado de autenticación en Postman seleccionando "Bearer Token" e introduce el token de acceso.
 
-- En Swagger: Accede a la documentación Swagger en http://127.0.0.1:8080/swagger-ui/, donde podrás ingresar el token en la sección de autenticación para desbloquear el acceso a las rutas protegidas.
+- En Swagger: Accede a la documentación Swagger en http://127.0.0.1:8080/swagger-ui/ , donde podrás ingresar el token en la sección de autenticación para desbloquear el acceso a las rutas protegidas.
 
 ## Documentación Swagger
 La API incluye documentación Swagger para facilitar el uso de las rutas. Para acceder a la documentación:
@@ -94,6 +94,6 @@ Sigue las instrucciones en la interfaz para interactuar con las diferentes rutas
 
 - GET /drive/files?folder_id=<ID_DEL_FOLDER>: Lista los archivos dentro de un directorio específico.
 
-- POST /drive/files: Sube un archivo PDF a un directorio específico.
+- POST /drive/files?folder_id=<ID_DEL_FOLDER>: Sube un archivo PDF a un directorio específico.
 
 - GET /drive/files/{file_id}: Descarga un archivo PDF desde tu Google Drive usando su ID.
